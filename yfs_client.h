@@ -36,6 +36,8 @@ class yfs_client {
  private:
   static std::string filename(inum);
   static inum n2i(std::string);
+  static int find_in_dir(std::string, std::string);
+  static std::string add_to_dir(std::string, inum, std::string);
  public:
 
   yfs_client(std::string, std::string);
@@ -45,6 +47,18 @@ class yfs_client {
 
   int getfile(inum, fileinfo &);
   int getdir(inum, dirinfo &);
+
+  int read(inum, std::string &);
+  int write(inum, std::string);
+
+  int lookup(inum, std::string, inum &);
+  int create(inum, std::string, inum &);
+  int readdir(inum, std::vector<dirent> &);
+
+  int resize(inum, unsigned long long);
+
+  int read_part(inum, size_t, size_t, std::string &);
+  int write_part(inum, size_t, std::string);
 };
 
 #endif 

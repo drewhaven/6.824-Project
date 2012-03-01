@@ -17,8 +17,8 @@
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
 {
   ec = new extent_client(extent_dst);
-  srand(time(NULL));
-  
+  lc = new lock_client(lock_dst);
+  //srand(time(NULL));  
 }
 
 yfs_client::inum
@@ -43,7 +43,7 @@ yfs_client::filename(inum inum)
 // filename2 NULL inum2 NULL
 // ...
 // filenameN NULL inumN NULL NULL
-int
+yfs_client::inum
 yfs_client::find_in_dir(std::string file, std::string dir)
 {
   const char *f = file.c_str(), *d = dir.c_str();
@@ -66,6 +66,25 @@ yfs_client::add_to_dir(std::string file, inum ino, std::string dir)
   return ost.str();
 }
 
+std::string
+yfs_client::remove_from_dir(std::string file, std::string dir)
+{
+  const char *f = file.c_str(), *d = dir.c_str();
+  int n, pos = 0;
+  while( *d != NULL ) {
+    if( strcmp(f, d) == 0 ) { // check if filename matches
+      n = strlen(d) + 1;
+      d += n;
+      n += strlen(d) + 1;
+      dir.erase(pos, n);
+      return dir;
+    }
+    n = strlen(d) + 1; d += n; pos += n; // skip filename
+    n = strlen(d) + 1; d += n; pos += n;// skip inum
+  }
+  return dir;
+}
+
 bool
 yfs_client::isfile(inum inum)
 {
@@ -84,8 +103,7 @@ int
 yfs_client::getfile(inum inum, fileinfo &fin)
 {
   int r = OK;
-  // You modify this function for Lab 3
-  // - hold and release the file lock
+  lc->acquire(inum);
 
   printf("getfile %016llx\n", inum);
   extent_protocol::attr a;
@@ -101,7 +119,7 @@ yfs_client::getfile(inum inum, fileinfo &fin)
   printf("getfile %016llx -> sz %llu\n", inum, fin.size);
 
  release:
-
+  lc->release(inum);
   return r;
 }
 
@@ -109,8 +127,7 @@ int
 yfs_client::getdir(inum inum, dirinfo &din)
 {
   int r = OK;
-  // You modify this function for Lab 3
-  // - hold and release the directory lock
+  lc->acquire(inum);
 
   printf("getdir %016llx\n", inum);
   extent_protocol::attr a;
@@ -123,33 +140,38 @@ yfs_client::getdir(inum inum, dirinfo &din)
   din.ctime = a.ctime;
 
  release:
+  lc->release(inum);
   return r;
+}
+
+int
+yfs_client::rpc_status_translate(extent_protocol::status ret)
+{  
+  if( ret == extent_protocol::RPCERR )
+    return RPCERR;
+  if( ret == extent_protocol::NOENT )
+    return NOENT;
+  if(ret == extent_protocol::IOERR )
+    return IOERR;
+  return OK;
 }
 
 int
 yfs_client::read(inum inum, std::string &s)
 {
-  int ret = ec->get(inum, s);
-  if( ret == extent_protocol::RPCERR )
-    return RPCERR;
-  if( ret == extent_protocol::NOENT )
-    return NOENT;
-  if(ret == extent_protocol::IOERR )
-    return IOERR;
-  return OK;
+  return rpc_status_translate( ec->get(inum, s) );
 }
 
 int
 yfs_client::write(inum inum, std::string s)
 {
-  int ret = ec->put(inum, s);
-  if( ret == extent_protocol::RPCERR )
-    return RPCERR;
-  if( ret == extent_protocol::NOENT )
-    return NOENT;
-  if(ret == extent_protocol::IOERR )
-    return IOERR;
-  return OK;
+  return rpc_status_translate( ec->put(inum, s) );
+}
+
+int
+yfs_client::remove(inum inum)
+{
+  return rpc_status_translate( ec->remove(inum) );
 }
 
 int
@@ -158,53 +180,114 @@ yfs_client::lookup(inum parent, std::string name, inum &ino)
   if( !isdir(parent) ) 
     return NOENT;
 
+  lc->acquire(parent);
   std::string pdir;
   int ret = read(parent, pdir);
   if( ret != OK )
-    return ret;
+    goto release;
   
   ino = find_in_dir(name, pdir);
-  if( ino )
-    return EXIST;
-
-  return NOENT;
+  if( ino ) {
+    ret = EXIST;
+  }
+  else {
+    ret = NOENT;
+  }
+ release:
+  lc->release(parent);
+  return ret;
 }
 
 int
-yfs_client::create(inum parent, std::string name, inum &ino)
+yfs_client::create(inum parent, std::string name, inum &ino, bool dir)
 {
   if( !isdir(parent) ) 
     return NOENT;
 
+  bool acq_file_lock = false;
+  lc->acquire(parent);
+  
   std::string pdir;
   int ret = read(parent, pdir);
   if( ret != OK )
-    return ret;
+    goto release;
 
   // check for existence
-  if( find_in_dir(name, pdir) )
-    return EXIST;
+  if( find_in_dir(name, pdir) ) {
+    ret = EXIST;
+    goto release;
+  }
 
   // make a new ino
   while(1) {
-    ino = (rand() & 0x00000000FFFFFFFF) | 0x0000000080000000;
+    if(dir)
+      ino = (rand() & 0x000000007FFFFFFF);
+    else
+      ino = (rand() & 0x00000000FFFFFFFF) | 0x0000000080000000;
     extent_protocol::attr a;
     ret = ec->getattr(ino, a);
     if( ret == extent_protocol::NOENT )
       break;
-    else if( ret != extent_protocol::OK )
-      return IOERR;
+    else if( ret != extent_protocol::OK ) {
+      ret = RPCERR;
+      goto release;
+    }
   }
   printf("create %016llx\n", ino);
 
+  lc->acquire(ino);
+  acq_file_lock = true;
   // write file
   ret = write(ino, "");
   if( ret != OK ) {
-    return ret;
+    goto release;
   }
 
   // write directory
   ret = write(parent, add_to_dir(name, ino, pdir));
+
+ release:
+  if(acq_file_lock)
+    lc->release(ino);
+  lc->release(parent);
+  return ret;
+}
+
+int
+yfs_client::unlink(inum parent, std::string name)
+{
+  if( !isdir(parent) )
+    return NOENT;
+
+  bool acq_file_lock = false;
+  lc->acquire(parent);
+  std::string pdir;
+  int ret = read(parent, pdir);
+  inum ino;
+  if( ret != OK )
+    goto release;
+  
+  // check for existence
+  if( ! (ino = find_in_dir(name, pdir)) ) {
+    ret = NOENT;
+    goto release;
+  }
+
+  printf("unlink %016llx\n", ino);
+
+  lc->acquire(ino);
+  acq_file_lock = true;
+  // remove from extent server
+  ret = remove(ino);
+  if( ret != OK )
+    goto release;
+  
+  // write directory
+  ret = write(parent, remove_from_dir(name, pdir));
+ release:
+  if(acq_file_lock)
+    lc->release(ino);
+  lc->release(parent);
   return ret;
 }
 
@@ -214,15 +297,17 @@ yfs_client::readdir(inum dir, std::vector<dirent> &entries)
   if( !isdir(dir) )
     return NOENT;
 
+  lc->acquire(dir);
   std::string dstr;
+  const char *d;
   int ret = read(dir, dstr);
   if( ret != OK )
-    return ret;
+    goto release;
 
   entries.clear();
-  const char *d = dstr.c_str();
-  dirent entry;
+  d = dstr.c_str();
   while( *d != NULL ) {
+    dirent entry;
     entry.name = std::string(d);
     d += strlen(d) + 1; // skip filename
     entry.inum = n2i(std::string(d));
@@ -230,7 +315,10 @@ yfs_client::readdir(inum dir, std::vector<dirent> &entries)
     entries.push_back(entry);
   }
 
-  return OK;
+  ret = OK;
+ release:
+  lc->release(dir);
+  return ret;
 }
 
 int
@@ -239,10 +327,11 @@ yfs_client::resize(inum ino, unsigned long long size)
   if( !isfile(ino) )
     return IOERR;
 
+  lc->acquire(ino);
   std::string s;
   int ret = read(ino, s);
   if( ret != OK )
-    return ret;
+    goto release;
 
   if( size > s.size() ) {
     std::ostringstream ost;
@@ -252,15 +341,18 @@ yfs_client::resize(inum ino, unsigned long long size)
   else {
     ret = write(ino, s.substr(0, size));
   }
+ release:
+  lc->release(ino);
   return ret;
 }
 
 int
 yfs_client::read_part(inum ino, size_t sz, size_t off, std::string &s)
 {
+  lc->acquire(ino);
   int ret = read(ino, s);
   if( ret != OK )
-    return ret;
+    goto release;
 
   if( off >= s.size() ) {
     s = "";
@@ -269,16 +361,20 @@ yfs_client::read_part(inum ino, size_t sz, size_t off, std::string &s)
     s = s.substr(off, sz);
   }
 
-  return OK;
+  ret = OK;
+ release:
+  lc->release(ino);
+  return ret;
 }
 
 int
 yfs_client::write_part(inum ino, size_t off, std::string s)
 {
+  lc->acquire(ino);
   std::string file;
   int ret = read(ino, file);
   if(ret != OK )
-    return ret;
+    goto release;
 
   if(off >= file.size()) {
     file.append(off - file.size() + 1, NULL);
@@ -286,5 +382,7 @@ yfs_client::write_part(inum ino, size_t off, std::string s)
   file.replace(off, s.size(), s);
 
   ret = write(ino, file);
+ release:
+  lc->release(ino);
   return ret;
 }

@@ -9,6 +9,7 @@
 #include "handle.h"
 #include "tprintf.h"
 
+#define SERVER_PRINT_DEBUG false
 
 lock_server_cache::lock_server_cache()
 {
@@ -20,17 +21,17 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
                                int &)
 {
   lock_protocol::status ret = lock_protocol::OK;
-  printf("server: acq lock %d from client %s\n", lid, id.c_str());
+  if(SERVER_PRINT_DEBUG) printf("server: acq lock %d from client %s\n", lid, id.c_str());
   pthread_mutex_lock(&locks_mutex);
   server_lock_t &lock = locks[lid];
-  printf("server: lock %d is currently %d-locked by %s\n", lid, lock.is_locked, lock.holder.c_str());
+  if(SERVER_PRINT_DEBUG) printf("server: lock %d is currently %d-locked by %s\n", lid, lock.is_locked, lock.holder.c_str());
   
   if( ! clients.count(id) ) {
     sockaddr_in dstsock;
     make_sockaddr(id.c_str(), &dstsock);
     rpcc *cl = new rpcc(dstsock);
     if( cl->bind() < 0 ) {
-      printf("Problem binding to client %s\n", id.c_str());
+      if(SERVER_PRINT_DEBUG) printf("Problem binding to client %s\n", id.c_str());
     }
     clients[id] = cl;
   }
@@ -40,7 +41,7 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
     lock.is_locked = true;
     lock.holder = id;
     lock.waiting_set.erase(id);
-    printf("server: sending lock %d to client %s\n", lid, id.c_str());
+    if(SERVER_PRINT_DEBUG) printf("server: sending lock %d to client %s\n", lid, id.c_str());
     if(lock.waiting_set.size()) revoke = true;
   }
   else {
@@ -50,11 +51,10 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
   }
   if(revoke) {
     pthread_mutex_unlock(&locks_mutex);
-    printf("server: revoking lock %d from client %s (%s is waiting)\n", lid, lock.holder.c_str(), lock.waiting_set.begin()->c_str());
+    if(SERVER_PRINT_DEBUG) printf("server: revoking lock %d from client %s (%s is waiting)\n", lid, lock.holder.c_str(), lock.waiting_set.begin()->c_str());
     int r;
     rlock_protocol::status rval = clients[lock.holder]->call(rlock_protocol::revoke, lid, r);
-    if(rval != rlock_protocol::OK) printf("ERROR!! rval = %d\n", rval);
-    VERIFY (rval == rlock_protocol::OK);
+    VERIFY( rval == rlock_protocol::OK );
   }
   else {
     pthread_mutex_unlock(&locks_mutex);
@@ -70,17 +70,15 @@ lock_server_cache::release(lock_protocol::lockid_t lid, std::string id,
   pthread_mutex_lock(&locks_mutex);
   server_lock_t &lock = locks[lid];
   if( lock.is_locked && lock.holder.compare(id) == 0 ) {
-    printf("server: releasing lock %d, previously held by client %s\n", lid, id.c_str());
+    if(SERVER_PRINT_DEBUG) printf("server: releasing lock %d, previously held by client %s\n", lid, id.c_str());
     lock.is_locked = false;
     if( ! lock.waiting_set.empty() ) {
       std::string next_client = *(lock.waiting_set.begin());
-      printf("server: sending retry on lock %d to client %s\n", lid, next_client.c_str());
-      //printf("erased? %d\n", lock.waiting_set.erase(next_client));
+      if(SERVER_PRINT_DEBUG) printf("server: sending retry on lock %d to client %s\n", lid, next_client.c_str());
       pthread_mutex_unlock(&locks_mutex);
       int r;
       rlock_protocol::status rval = clients[next_client]->call(rlock_protocol::retry, lid, r);
       VERIFY (rval == rlock_protocol::OK);
-
       return ret;
     }
   }

@@ -43,7 +43,6 @@ class lock_client_cache : public lock_client {
     int status;
     bool revoked;
     pthread_t holder;
-    //pthread_mutex_t lock_mutex;
     pthread_cond_t lock_cond;
   };
   

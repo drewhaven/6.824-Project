@@ -4,6 +4,8 @@
 
 #define lock_client_cache_h
 
+#include <map>
+#include <pthread.h>
 #include <string>
 #include "lock_protocol.h"
 #include "rpc.h"
@@ -34,6 +36,20 @@ class lock_client_cache : public lock_client {
                                         int &);
   rlock_protocol::status retry_handler(lock_protocol::lockid_t, 
                                        int &);
+
+ private:
+  enum cachestatus { NONE, FREE, LOCKED, ACQUIRING, RELEASING };
+  struct cache_lockinfo_t {
+    int status;
+    bool revoked;
+    pthread_t holder;
+    //pthread_mutex_t lock_mutex;
+    pthread_cond_t lock_cond;
+  };
+  
+  pthread_mutex_t cache_mutex;
+  std::map<lock_protocol::lockid_t, cache_lockinfo_t> cached_locks;
+
 };
 
 

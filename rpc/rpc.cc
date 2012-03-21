@@ -613,7 +613,7 @@ rpcs::dispatch(djob_t *j)
 			// get the latest connection to the client
 			{
 				ScopedLock rwl(&conss_m_);
-				if(c->isdead() && c != conns_[h.clt_nonce]){
+			 	if(c->isdead() && c != conns_[h.clt_nonce]){
 					c->decref();
 					c = conns_[h.clt_nonce];
 					c->incref();
@@ -642,6 +642,8 @@ rpcs::dispatch(djob_t *j)
 	c->decref();
 }
 
+#define PRINT_DEBUG false
+
 // rpcs::dispatch calls this when an RPC request arrives.
 //
 // checks to see if an RPC with xid from clt_nonce has already been received.
@@ -662,7 +664,39 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 {
 	ScopedLock rwl(&reply_window_m_);
 
-        // You fill this in for Lab 1.
+	std::list<reply_t> &replies = reply_window_[clt_nonce];
+
+	std::list<reply_t>::iterator it;
+	// clear old clt/xid pairs
+	for(it = replies.begin(); it != replies.end() && it->xid < xid_rep; ++it) {
+	  free(it->buf);
+	}
+	replies.erase(replies.begin(), it);
+
+	// look for correct spot in reply list
+	for(; it != replies.end() && it->xid < xid; ++it);
+
+	if(it != replies.end()) {
+	  // if xid <= previous xid_rep => FORGOTTEN
+	  if(it == replies.begin())
+	    return FORGOTTEN;
+	  
+	  if(it->xid == xid) {
+	    // xid known
+	    if(it->cb_present) {
+	      if(PRINT_DEBUG) printf("Remembered rpc call from (clt, xid) = (%d, %d)\n", clt_nonce, xid);
+	      *b = it->buf;
+	      *sz = it->sz;
+	      return DONE;
+	    }
+	    else {
+	      if(PRINT_DEBUG) printf("Rpc call in progress from (clt, xid) = (%d, %d)\n", clt_nonce, xid);
+	      return INPROGRESS;
+	    }
+	  }
+	}
+	
+	replies.insert(it, reply_t(xid));
 	return NEW;
 }
 
@@ -676,7 +710,18 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 		char *b, int sz)
 {
 	ScopedLock rwl(&reply_window_m_);
-        // You fill this in for Lab 1.
+
+	if(PRINT_DEBUG) printf("Adding reply for (clt, xid) = (%d, %d)\n", clt_nonce, xid);
+
+	std::list<reply_t> &replies = reply_window_[clt_nonce];
+	std::list<reply_t>::iterator it;
+	for(it = replies.begin(); it != replies.end() && it->xid != xid; ++it);
+
+	if(it != replies.end()) {
+	  it->buf = b;
+	  it->sz = sz;
+	  it->cb_present = true;
+	}
 }
 
 void

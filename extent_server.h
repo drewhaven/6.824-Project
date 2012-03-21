@@ -5,9 +5,20 @@
 
 #include <string>
 #include <map>
+#include <pthread.h>
 #include "extent_protocol.h"
 
 class extent_server {
+
+ protected:
+  pthread_mutex_t m_;
+
+  struct extent {
+    std::string str;
+    extent_protocol::attr attr;
+  };
+
+  std::map<extent_protocol::extentid_t, extent> extents_map_;
 
  public:
   extent_server();

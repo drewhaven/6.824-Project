@@ -1,6 +1,7 @@
 // the extent server implementation
 
 #include "extent_server.h"
+#include <ctime>
 #include <sstream>
 #include <stdio.h>
 #include <unistd.h>
@@ -8,37 +9,80 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-extent_server::extent_server() {}
+extent_server::extent_server()
+{
+  pthread_mutex_init(&m_, NULL);
+  int i; put(1, "", i);
+}
 
 
 int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 {
-  // You fill this in for Lab 2.
-  return extent_protocol::IOERR;
+  pthread_mutex_lock(&m_);
+  
+  extent &ex = extents_map_[id];
+  ex.str = buf;
+  
+  unsigned int t = time(NULL);
+  ex.attr.ctime = t;
+  ex.attr.mtime = t;
+  ex.attr.size = buf.size();
+
+  pthread_mutex_unlock(&m_);
+  
+  return extent_protocol::OK;
 }
 
 int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 {
-  // You fill this in for Lab 2.
-  return extent_protocol::IOERR;
+  pthread_mutex_lock(&m_);
+
+  int ret = extent_protocol::IOERR;
+
+  if(extents_map_.count(id)) {
+    extent &ex = extents_map_[id];
+    buf = ex.str;
+    unsigned int t = time(NULL);
+    ex.attr.atime = t;
+    ret = extent_protocol::OK; 
+  }
+  else {
+    ret = extent_protocol::NOENT;
+  }
+
+  pthread_mutex_unlock(&m_);
+  
+  return ret;
 }
 
 int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr &a)
 {
-  // You fill this in for Lab 2.
-  // You replace this with a real implementation. We send a phony response
-  // for now because it's difficult to get FUSE to do anything (including
-  // unmount) if getattr fails.
-  a.size = 0;
-  a.atime = 0;
-  a.mtime = 0;
-  a.ctime = 0;
-  return extent_protocol::OK;
+  pthread_mutex_lock(&m_);
+
+  int ret = extent_protocol::IOERR;
+
+  if(extents_map_.count(id)) {
+    extent &ex = extents_map_[id];
+    a = ex.attr;
+    ret = extent_protocol::OK;
+  }
+  else {
+    ret = extent_protocol::NOENT;
+  }
+
+  pthread_mutex_unlock(&m_);
+  
+  return ret;
 }
 
 int extent_server::remove(extent_protocol::extentid_t id, int &)
 {
-  // You fill this in for Lab 2.
-  return extent_protocol::IOERR;
+  pthread_mutex_lock(&m_);
+
+  extents_map_.erase(id);
+
+  pthread_mutex_unlock(&m_);
+  
+  return extent_protocol::OK;
 }
 

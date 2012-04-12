@@ -17,7 +17,7 @@
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
 {
   ec = new extent_client(extent_dst);
-  lc = new lock_client_cache(lock_dst);
+  lc = new lock_client_cache(lock_dst, new extent_lock_release_user(ec));
   //srand(time(NULL));  
 }
 
@@ -225,6 +225,8 @@ yfs_client::create(inum parent, std::string name, inum &ino, bool dir)
     else
       ino = (rand() & 0x00000000FFFFFFFF) | 0x0000000080000000;
     extent_protocol::attr a;
+    lc->acquire(ino);
+    acq_file_lock = true;
     ret = ec->getattr(ino, a);
     if( ret == extent_protocol::NOENT )
       break;
@@ -232,11 +234,11 @@ yfs_client::create(inum parent, std::string name, inum &ino, bool dir)
       ret = RPCERR;
       goto release;
     }
+    lc->release(ino);
+    acq_file_lock = false;
   }
   printf("create %016llx\n", ino);
 
-  lc->acquire(ino);
-  acq_file_lock = true;
   // write file
   ret = write(ino, "");
   if( ret != OK ) {

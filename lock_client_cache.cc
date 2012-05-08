@@ -102,7 +102,7 @@ lock_client_cache::release(lock_protocol::lockid_t lid)
     if( cache.status == LOCKED && cache.holder == pthread_self() ) {
       if( cache.revoked ) {
 	cache.status = RELEASING;
-	lu->dorelease(lid);
+	lu->dorelease(lid, cache.next_client);
 	pthread_mutex_unlock(&cache_mutex);
 	if(CLIENT_PRINT_DEBUG) printf("client %s: rpc release lock %d\n", id.c_str(), lid);
 	int r;
@@ -148,6 +148,7 @@ lock_client_cache::revoke_handler(lock_protocol::lockid_t lid, std::string clien
     }
     else if( cache.status != RELEASING ) {
       cache.revoked = true;
+      cache.next_client = client_id;
     }
   }
   pthread_mutex_unlock(&cache_mutex);

@@ -19,7 +19,7 @@
 class lock_release_user {
  public:
   virtual void dorelease(lock_protocol::lockid_t, std::string) = 0;
-  virtual void push_extent(extent_protocol::extentid_t, std::string) = 0;
+  virtual void push_extent(extent_protocol::extentid_t, std::string, extent_protocol::attr) = 0;
   virtual ~lock_release_user() {};
 };
 
@@ -39,13 +39,14 @@ class lock_client_cache : public lock_client {
   rlock_protocol::status retry_handler(lock_protocol::lockid_t, 
                                        int &);
   rlock_protocol::status push_handler(lock_protocol::lockid_t, extent_protocol::extentid_t,
-				      std::string, int &);
+				      std::string, extent_protocol::attr, int &);
 
  private:
   enum cachestatus { NONE, FREE, LOCKED, ACQUIRING, RELEASING };
   struct cache_lockinfo_t {
     int status;
     bool revoked;
+    std::string next_client;
     pthread_t holder;
     pthread_cond_t lock_cond;
   };

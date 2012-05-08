@@ -1,6 +1,8 @@
 // RPC stubs for clients to talk to extent_server
 
 #include "extent_client.h"
+#include "lock_protocol.h"
+#include "handle.h"
 #include <sstream>
 #include <iostream>
 #include <stdio.h>
@@ -9,11 +11,12 @@
 
 #define EXT_CL_PRINT_DEBUG false
 
-/* P2P: DEPRECATED - never have to flush to server anymore */
+/* P2P: Changed - never have to flush to server anymore, but now calls push */
 void
 extent_lock_release_user::dorelease(lock_protocol::lockid_t lid, std::string client_id)
 {
-  ec->flush(lid);
+  //ec->flush(lid);
+  ec->push(lid, client_id);
 }
 
 void
@@ -23,9 +26,11 @@ extent_lock_release_user::push_extent(extent_protocol::extentid_t eid, std::stri
 }
 
 // The calls assume that the caller holds a lock on the extent
+void
 extent_client::received_extent(extent_protocol::extentid_t eid, std::string extent, extent_protocol::attr attr)
 {
-  extent_cache[eid] = extent;
+  extent_cache[eid].buf = extent;
+  extent_cache[eid].attr = attr;
   extent_cache[eid].attr.atime = time(NULL);
 }
 
@@ -47,8 +52,8 @@ extent_client::get(extent_protocol::extentid_t eid, std::string &buf)
 {
   extent_protocol::status ret = extent_protocol::OK;
   pthread_mutex_lock(&m);
-  buf = extent_cache[eid];
-/*  if(EXT_CL_PRINT_DEBUG) printf("get %d [%d]\n", eid, extent_cache.count(eid));
+  buf = extent_cache[eid].buf;
+/*  If(EXT_CL_PRINT_DEBUG) printf("get %d [%d]\n", eid, extent_cache.count(eid));
   if( extent_cache.count(eid) ) {
     // return cached copy
     if(EXT_CL_PRINT_DEBUG) printf("... from cache\n");
@@ -150,7 +155,7 @@ extent_client::flush(extent_protocol::extentid_t eid)
   extent_protocol::status ret = extent_protocol::OK;
   pthread_mutex_lock(&m);
   if(EXT_CL_PRINT_DEBUG) printf("flush %d [%d]\n", eid, extent_cache.count(eid));
-  if( extent_cache.count(eid) && extent_cache[eid].dirty ) {
+  if( extent_cache.count(eid) ){//&& extent_cache[eid].dirty ) {
     if(EXT_CL_PRINT_DEBUG) printf("... sending put to server\n");
     int r;
     ret = cl->call(extent_protocol::put, eid, extent_cache[eid].buf, r);
@@ -160,3 +165,17 @@ extent_client::flush(extent_protocol::extentid_t eid)
   return ret;
 }
 
+void
+extent_client::push(lock_protocol::lockid_t lid, std::string client_id)
+{
+  handle h(client_id);
+  rpcc *client = h.safebind();
+  if( client ) {
+    pthread_mutex_lock(&m);
+    extent_protocol::extentid_t eid = lid; // convert from lid to eid
+    extent &ex = extent_cache[eid];
+    int r;
+    client->call(rlock_protocol::push, lid, eid, ex.buf, ex.attr, r);
+    pthread_mutex_unlock(&m);
+  }
+}

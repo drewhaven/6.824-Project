@@ -28,7 +28,7 @@ class extent_client {
  public:
   extent_client(std::string dst);
 
-  extent_protocol::received_extent(extent_protocol::extentid_t, std::string, extent_protocol::);
+  void received_extent(extent_protocol::extentid_t, std::string, extent_protocol::attr);
   extent_protocol::status get(extent_protocol::extentid_t eid,
 			      std::string &buf);
   extent_protocol::status getattr(extent_protocol::extentid_t eid,
@@ -36,6 +36,8 @@ class extent_client {
   extent_protocol::status put(extent_protocol::extentid_t eid, std::string buf);
   extent_protocol::status remove(extent_protocol::extentid_t eid);
   extent_protocol::status flush(extent_protocol::extentid_t eid);
+  
+  void push(lock_protocol::lockid_t, std::string);
 };
 
 class extent_lock_release_user : public lock_release_user {
@@ -43,8 +45,8 @@ private:
   extent_client* ec;
 public:
   extent_lock_release_user(extent_client* ec) : ec(ec) { }
-  void dorelease(lock_protocol::lockid_t, std:string);
-  void push_extent(extent_protocol::extentid_t, std::string);
+  void dorelease(lock_protocol::lockid_t, std::string);
+  void push_extent(extent_protocol::extentid_t, std::string, extent_protocol::attr);
 };
 
 #endif 

@@ -37,7 +37,8 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
   }
 
   bool revoke = false;
-  if( ! lock.is_locked ) {
+  if (  (! lock.is_locked && lock.holder.empty())
+     || (! lock.is_locked && lock.holder == id) ) {
     lock.is_locked = true;
     lock.holder = id;
     lock.waiting_set.erase(id);
@@ -46,6 +47,7 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
   }
   else {
     lock.waiting_set.insert(id);
+    lock.holder = id;
     revoke = true;
     ret = lock_protocol::RETRY;
   }
@@ -66,33 +68,22 @@ int
 lock_server_cache::release(lock_protocol::lockid_t lid, std::string id, 
          int &)
 {
-  lock_protocol::status ret = lock_protocol::OK;
-  pthread_mutex_lock(&locks_mutex);
+  ScopedLock m_(&locks_mutex);
+
   server_lock_t &lock = locks[lid];
-  if( lock.is_locked && lock.holder.compare(id) == 0 ) {
-    if(SERVER_PRINT_DEBUG) printf("server: releasing lock %d, previously held by client %s\n", lid, id.c_str());
-    lock.is_locked = false;
-    if( ! lock.waiting_set.empty() ) {
-      std::string next_client = *(lock.waiting_set.begin());
-      if(SERVER_PRINT_DEBUG) printf("server: sending retry on lock %d to client %s\n", lid, next_client.c_str());
-      pthread_mutex_unlock(&locks_mutex);
-      int r;
-      rlock_protocol::status rval = clients[next_client]->call(rlock_protocol::retry, lid, r);
-      VERIFY (rval == rlock_protocol::OK);
-      return ret;
-    }
-  }
-  pthread_mutex_unlock(&locks_mutex);
-  return ret;
+  if ( ! lock.is_locked ) return lock_protocol::RPCERR;
+
+  if(SERVER_PRINT_DEBUG) printf("server: releasing lock %d, previously held by client %s\n", lid, id.c_str());
+
+  lock.is_locked = false;
+  if (lock.holder == id) lock.holder.clear();
+
+  return lock_protocol::OK;
 }
 
 lock_protocol::status
 lock_server_cache::stat(lock_protocol::lockid_t lid, int &r)
 {
-  tprintf("stat request\n");
-  r = nacquire;
-  pthread_mutex_lock(&locks_mutex);
-  pthread_mutex_unlock(&locks_mutex);
   return lock_protocol::OK;
 }
 

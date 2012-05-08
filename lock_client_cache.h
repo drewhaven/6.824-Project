@@ -38,7 +38,8 @@ class lock_client_cache : public lock_client {
                                         int &);
   rlock_protocol::status retry_handler(lock_protocol::lockid_t, 
                                        int &);
-  rlock_protocol::status push_handler(extent_protocol::extentid_t, std::string, int &);
+  rlock_protocol::status push_handler(lock_protocol::lockid_t, extent_protocol::extentid_t,
+				      std::string, int &);
 
  private:
   enum cachestatus { NONE, FREE, LOCKED, ACQUIRING, RELEASING };

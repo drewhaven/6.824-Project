@@ -17,6 +17,7 @@ lock_client_cache::lock_client_cache(std::string xdst,
   rpcs *rlsrpc = new rpcs(0);
   rlsrpc->reg(rlock_protocol::revoke, this, &lock_client_cache::revoke_handler);
   rlsrpc->reg(rlock_protocol::retry, this, &lock_client_cache::retry_handler);
+  rlsrpc->reg(rlock_protocol::push, this, &lock_client_cache::push_handler);
 
   const char *hname;
   hname = "127.0.0.1";
@@ -171,9 +172,10 @@ lock_client_cache::retry_handler(lock_protocol::lockid_t lid,
 }
 
 rlock_protocol::status
-lock_client_cache::push_handler(extent_protocol::extentid_t eid, std::string extent, int &)
+lock_client_cache::push_handler(lock_protocol::lockid_t lid, extent_protocol::extentid_t eid,
+				std::string extent, int &i)
 {
-  int ret = rlock_protocol::OK;
-  return ret;
+  lu->push_extent(eid, extent);
+  return retry_handler(lid, i);
 }
 

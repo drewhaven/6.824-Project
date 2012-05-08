@@ -55,7 +55,7 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
     pthread_mutex_unlock(&locks_mutex);
     if(SERVER_PRINT_DEBUG) printf("server: revoking lock %d from client %s (%s is waiting)\n", lid, lock.holder.c_str(), lock.waiting_set.begin()->c_str());
     int r;
-    rlock_protocol::status rval = clients[lock.holder]->call(rlock_protocol::revoke, lid, r);
+    rlock_protocol::status rval = clients[lock.holder]->call(rlock_protocol::revoke, lid, id, r);
     VERIFY( rval == rlock_protocol::OK );
   }
   else {

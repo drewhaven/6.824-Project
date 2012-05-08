@@ -1,0 +1,6 @@
+core
+config
+*.d
+*.o
+*.log
+.__afs*

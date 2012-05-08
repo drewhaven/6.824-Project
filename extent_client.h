@@ -42,7 +42,8 @@ private:
   extent_client* ec;
 public:
   extent_lock_release_user(extent_client* ec) : ec(ec) { }
-  void dorelease(lock_protocol::lockid_t);
+  void dorelease(lock_protocol::lockid_t, std:string);
+  void push_extent(extent_protocol::extentid_t, std::string);
 };
 
 #endif 

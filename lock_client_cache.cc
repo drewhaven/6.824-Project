@@ -170,5 +170,10 @@ lock_client_cache::retry_handler(lock_protocol::lockid_t lid,
   return ret;
 }
 
-
+rlock_protocol::status
+lock_client_cache::push_handler(extent_protocol::extentid_t eid, std::string extent, int &)
+{
+  int ret = rlock_protocol::OK;
+  return ret;
+}
 

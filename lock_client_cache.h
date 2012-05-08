@@ -7,6 +7,7 @@
 #include <map>
 #include <pthread.h>
 #include <string>
+#include "extent_protocol.h"
 #include "lock_protocol.h"
 #include "rpc.h"
 #include "lock_client.h"
@@ -17,7 +18,8 @@
 // You will not need to do anything with this class until Lab 5.
 class lock_release_user {
  public:
-  virtual void dorelease(lock_protocol::lockid_t) = 0;
+  virtual void dorelease(lock_protocol::lockid_t, std::string) = 0;
+  virtual void push_extent(extent_protocol::extentid_t, std::string) = 0;
   virtual ~lock_release_user() {};
 };
 
@@ -36,6 +38,7 @@ class lock_client_cache : public lock_client {
                                         int &);
   rlock_protocol::status retry_handler(lock_protocol::lockid_t, 
                                        int &);
+  rlock_protocol::status push_handler(extent_protocol::extentid_t, std::string, int &);
 
  private:
   enum cachestatus { NONE, FREE, LOCKED, ACQUIRING, RELEASING };

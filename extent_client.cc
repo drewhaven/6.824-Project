@@ -10,9 +10,15 @@
 #define EXT_CL_PRINT_DEBUG false
 
 void
-extent_lock_release_user::dorelease(lock_protocol::lockid_t lid)
+extent_lock_release_user::dorelease(lock_protocol::lockid_t lid, std::string client_id)
 {
   ec->flush(lid);
+}
+
+void
+extent_lock_release_user::push_extent(extent_protocol::extentid_t eid, std::string extent)
+{
+  ec->/* do something */;
 }
 
 // The calls assume that the caller holds a lock on the extent

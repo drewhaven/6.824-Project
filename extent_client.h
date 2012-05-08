@@ -15,22 +15,23 @@
 class extent_client {
  private:
   rpcc *cl;
-  
+
   struct extent {
     std::string buf;
     extent_protocol::attr attr;
-    bool dirty;
+    // P2P bool dirty;
   };
-  
+
   pthread_mutex_t m;
-  std::map<extent_protocol::extentid_t, extent> extent_cache;  
+  std::map<extent_protocol::extentid_t, extent> extent_cache;
 
  public:
   extent_client(std::string dst);
 
-  extent_protocol::status get(extent_protocol::extentid_t eid, 
+  extent_protocol::received_extent(extent_protocol::extentid_t, std::string, extent_protocol::);
+  extent_protocol::status get(extent_protocol::extentid_t eid,
 			      std::string &buf);
-  extent_protocol::status getattr(extent_protocol::extentid_t eid, 
+  extent_protocol::status getattr(extent_protocol::extentid_t eid,
 				  extent_protocol::attr &a);
   extent_protocol::status put(extent_protocol::extentid_t eid, std::string buf);
   extent_protocol::status remove(extent_protocol::extentid_t eid);

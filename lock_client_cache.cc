@@ -125,7 +125,7 @@ lock_client_cache::release(lock_protocol::lockid_t lid)
 }
 
 rlock_protocol::status
-lock_client_cache::revoke_handler(lock_protocol::lockid_t lid, 
+lock_client_cache::revoke_handler(lock_protocol::lockid_t lid, std::string client_id,
                                   int &)
 {
   int ret = rlock_protocol::OK;
@@ -135,7 +135,8 @@ lock_client_cache::revoke_handler(lock_protocol::lockid_t lid,
     if(CLIENT_PRINT_DEBUG) printf("client %s: revoke lock %d [%d]\n", id.c_str(), lid, cache.status);
     if( cache.status == FREE ) {
       cache.status = NONE;
-      lu->dorelease(lid);
+      // please don't break!
+      lu->dorelease(lid, client_id);
       pthread_mutex_unlock(&cache_mutex);
       if(CLIENT_PRINT_DEBUG) printf("client %s: rpc release lock %d\n", id.c_str(), lid);
       int r;

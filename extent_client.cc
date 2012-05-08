@@ -9,6 +9,7 @@
 
 #define EXT_CL_PRINT_DEBUG false
 
+/* P2P: DEPRECATED - never have to flush to server anymore */
 void
 extent_lock_release_user::dorelease(lock_protocol::lockid_t lid, std::string client_id)
 {
@@ -16,12 +17,17 @@ extent_lock_release_user::dorelease(lock_protocol::lockid_t lid, std::string cli
 }
 
 void
-extent_lock_release_user::push_extent(extent_protocol::extentid_t eid, std::string extent)
+extent_lock_release_user::push_extent(extent_protocol::extentid_t eid, std::string extent, extent_protocol::attr attr)
 {
-  ec->/* do something */;
+  ec->received_extent(eid, extent, attr);
 }
 
 // The calls assume that the caller holds a lock on the extent
+extent_client::received_extent(extent_protocol::extentid_t eid, std::string extent, extent_protocol::attr attr)
+{
+  extent_cache[eid] = extent;
+  extent_cache[eid].attr.atime = time(NULL);
+}
 
 extent_client::extent_client(std::string dst)
 {
@@ -35,12 +41,14 @@ extent_client::extent_client(std::string dst)
   pthread_mutex_init(&m, NULL);
 }
 
+/* P2P This will only be called if we already have the extent so no more RPC call */
 extent_protocol::status
 extent_client::get(extent_protocol::extentid_t eid, std::string &buf)
 {
   extent_protocol::status ret = extent_protocol::OK;
   pthread_mutex_lock(&m);
-  if(EXT_CL_PRINT_DEBUG) printf("get %d [%d]\n", eid, extent_cache.count(eid));
+  buf = extent_cache[eid];
+/*  if(EXT_CL_PRINT_DEBUG) printf("get %d [%d]\n", eid, extent_cache.count(eid));
   if( extent_cache.count(eid) ) {
     // return cached copy
     if(EXT_CL_PRINT_DEBUG) printf("... from cache\n");
@@ -57,6 +65,7 @@ extent_client::get(extent_protocol::extentid_t eid, std::string &buf)
     }
   }
   if(EXT_CL_PRINT_DEBUG) printf("... returning %d\n", ret);
+  */
   pthread_mutex_unlock(&m);
   return ret;
 }
@@ -67,6 +76,10 @@ extent_client::getattr(extent_protocol::extentid_t eid,
 {
   extent_protocol::status ret = extent_protocol::OK;
   pthread_mutex_lock(&m);
+  attr = extent_cache[eid].attr;
+  // probably should update atime too
+
+  /*
   if(EXT_CL_PRINT_DEBUG) printf("getattr %d [%d]\n", eid, extent_cache.count(eid));
   if( extent_cache.count(eid) ) {
     if(EXT_CL_PRINT_DEBUG) printf("... from cache\n");
@@ -81,6 +94,7 @@ extent_client::getattr(extent_protocol::extentid_t eid,
       cl->call(extent_protocol::get, eid, extent_cache[eid].buf);
     }
   }
+  */
   pthread_mutex_unlock(&m);
   return ret;
 }
@@ -90,6 +104,7 @@ extent_client::put(extent_protocol::extentid_t eid, std::string buf)
 {
   extent_protocol::status ret = extent_protocol::OK;
   pthread_mutex_lock(&m);
+  /*
   if(EXT_CL_PRINT_DEBUG) printf("put %d\n", eid);
   extent &ex = extent_cache[eid];
   ex.buf = buf;
@@ -99,6 +114,16 @@ extent_client::put(extent_protocol::extentid_t eid, std::string buf)
   ex.attr.ctime = t;
   ex.attr.mtime = t;
   ex.attr.size = buf.size();
+  */
+
+  extent &ex = extent_cache[eid];
+  ex.buf = buf;
+
+  unsigned int t = time(NULL);
+  ex.attr.ctime = t;
+  ex.attr.mtime = t;
+  ex.attr.size = buf.size();
+
   pthread_mutex_unlock(&m);
   return ret;
 }
@@ -108,14 +133,17 @@ extent_client::remove(extent_protocol::extentid_t eid)
 {
   extent_protocol::status ret = extent_protocol::OK;
   pthread_mutex_lock(&m);
+  /* P2P
   if(EXT_CL_PRINT_DEBUG) printf("remove %d\n", eid);
   int r;
   ret = cl->call(extent_protocol::remove, eid, r);
+  */
   extent_cache.erase(eid);
   pthread_mutex_unlock(&m);
   return ret;
 }
 
+/* P2P Deprecated */
 extent_protocol::status
 extent_client::flush(extent_protocol::extentid_t eid)
 {

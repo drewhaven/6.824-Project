@@ -173,9 +173,9 @@ lock_client_cache::retry_handler(lock_protocol::lockid_t lid,
 
 rlock_protocol::status
 lock_client_cache::push_handler(lock_protocol::lockid_t lid, extent_protocol::extentid_t eid,
-				std::string extent, int &i)
+				std::string extent, extent_protocol::attr attr, int &i)
 {
-  lu->push_extent(eid, extent);
+  lu->push_extent(eid, extent, attr);
   return retry_handler(lid, i);
 }
 

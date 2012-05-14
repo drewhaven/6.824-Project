@@ -16,6 +16,7 @@ class lock_server_cache {
   struct server_lock_t {
     bool is_locked;
     std::string holder;
+    std::string next;
     std::set<std::string> waiting_set;
   };
   std::map<lock_protocol::lockid_t, server_lock_t> locks;

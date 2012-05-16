@@ -70,6 +70,8 @@
 #include <time.h>
 #include <netdb.h>
 
+#include <unistd.h>
+
 #include "jsl_log.h"
 #include "gettime.h"
 #include "lang/verify.h"

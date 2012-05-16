@@ -2,6 +2,7 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 #include "extent_server.h"
 
 // Main loop of extent server

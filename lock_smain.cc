@@ -2,6 +2,7 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 #include "lock_server_cache.h"
 
 #include "jsl_log.h"

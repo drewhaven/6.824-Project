@@ -157,8 +157,10 @@ extent_client::flush(extent_protocol::extentid_t eid)
   if(EXT_CL_PRINT_DEBUG) printf("flush %d [%d]\n", eid, extent_cache.count(eid));
   if( extent_cache.count(eid) ){//&& extent_cache[eid].dirty ) {
     if(EXT_CL_PRINT_DEBUG) printf("... sending put to server\n");
+    pthread_mutex_unlock(&m);
     int r;
     ret = cl->call(extent_protocol::put, eid, extent_cache[eid].buf, r);
+    pthread_mutex_lock(&m);
   }
   extent_cache.erase(eid);
   pthread_mutex_unlock(&m);
@@ -174,8 +176,8 @@ extent_client::push(lock_protocol::lockid_t lid, std::string client_id)
     pthread_mutex_lock(&m);
     extent_protocol::extentid_t eid = lid; // convert from lid to eid
     extent &ex = extent_cache[eid];
+    pthread_mutex_unlock(&m);
     int r;
     client->call(rlock_protocol::push, lid, eid, ex.buf, ex.attr, r);
-    pthread_mutex_unlock(&m);
   }
 }

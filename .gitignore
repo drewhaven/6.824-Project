@@ -12,3 +12,6 @@ lock_tester
 test-lab-3-b
 test-lab-3-c
 yfs_client
+
+yfs1/*
+yfs2/*

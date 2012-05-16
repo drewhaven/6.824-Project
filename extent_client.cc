@@ -154,7 +154,7 @@ extent_client::flush(extent_protocol::extentid_t eid)
 {
   extent_protocol::status ret = extent_protocol::OK;
   pthread_mutex_lock(&m);
-  if(EXT_CL_PRINT_DEBUG) printf("flush %d [%d]\n", eid, extent_cache.count(eid));
+  if(EXT_CL_PRINT_DEBUG) printf("flush %llx [%d]\n", eid, extent_cache.count(eid));
   if( extent_cache.count(eid) ){//&& extent_cache[eid].dirty ) {
     if(EXT_CL_PRINT_DEBUG) printf("... sending put to server\n");
     pthread_mutex_unlock(&m);

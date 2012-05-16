@@ -47,10 +47,6 @@ fi
 
 unset RPC_LOSSY
 
-echo "starting ./extent_server $EXTENT_PORT > extent_server.log 2>&1 &"
-./extent_server $EXTENT_PORT > extent_server.log 2>&1 &
-sleep 1
-
 rm -rf $YFSDIR1
 mkdir $YFSDIR1 || exit 1
 sleep 1

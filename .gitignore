@@ -2,5 +2,13 @@ core
 config
 *.d
 *.o
+*.a
 *.log
 .__afs*
+
+extent_server
+lock_server
+lock_tester
+test-lab-3-b
+test-lab-3-c
+yfs_client

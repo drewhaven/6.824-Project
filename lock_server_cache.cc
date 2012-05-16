@@ -9,7 +9,7 @@
 #include "handle.h"
 #include "tprintf.h"
 
-const bool SERVER_PRINT_DEBUG = false;
+const bool SERVER_PRINT_DEBUG = true;
 
 #define SDEBUG(...) if (SERVER_PRINT_DEBUG) tprintf("server: " __VA_ARGS__)
 
@@ -29,10 +29,6 @@ lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id, int &)
   server_lock_t &lock = locks[lid];
   SDEBUG("%llu is %d-locked by '%s'\n", lid, lock.is_locked, lock.holder.c_str());
   
-  handle h(id);
-  rpcc *cl = h.safebind();
-  VERIFY(cl);
-
   bool revoke = false;
   if ( ! lock.is_locked && (lock.next.empty() || lock.next == id) ) {
     lock.is_locked = true;
@@ -61,8 +57,13 @@ lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id, int &)
 
   if (revoke) {
     SDEBUG("revoking %llu from '%s' ('%s' waiting)\n", lid, lock.holder.c_str(), lock.next.c_str());
+    
+    handle h(lock.holder);
+    rpcc *cl = h.safebind();
+    VERIFY(cl);
+
     int r;
-    rlock_protocol::status rval = clients[lock.holder]->call(rlock_protocol::revoke, lid, lock.next, r);
+    rlock_protocol::status rval = cl->call(rlock_protocol::revoke, lid, lock.next, r);
     VERIFY( rval == rlock_protocol::OK );
   }
 

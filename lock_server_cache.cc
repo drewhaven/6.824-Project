@@ -23,11 +23,11 @@ lock_protocol::status
 lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id, int &)
 {
   lock_protocol::status ret = lock_protocol::OK;
-  SDEBUG("acq %llu from '%s'\n", lid, id.c_str());
+  SDEBUG("acq %llx from '%s'\n", lid, id.c_str());
 
   pthread_mutex_lock(&locks_mutex);
   server_lock_t &lock = locks[lid];
-  SDEBUG("%llu is %d-locked by '%s'\n", lid, lock.is_locked, lock.holder.c_str());
+  SDEBUG("%llx is %d-locked by '%s'\n", lid, lock.is_locked, lock.holder.c_str());
   
   bool revoke = false;
   if ( ! lock.is_locked && (lock.next.empty() || lock.next == id) ) {
@@ -35,7 +35,7 @@ lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id, int &)
     lock.holder = id;
     lock.next.clear();
     lock.waiting_set.erase(id);
-    SDEBUG("sending lock %llu to client %s\n", lid, id.c_str());
+    SDEBUG("sending lock %llx to client %s\n", lid, id.c_str());
 
     if (lock.waiting_set.size()) {
       revoke = true;
@@ -53,17 +53,19 @@ lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id, int &)
     revoke = true;
     ret = lock_protocol::RETRY;
   }
+  std::string next = lock.next;
+  std::string holder = lock.holder;
   pthread_mutex_unlock(&locks_mutex);
 
-  if (revoke) {
-    SDEBUG("revoking %llu from '%s' ('%s' waiting)\n", lid, lock.holder.c_str(), lock.next.c_str());
+  if (revoke && ! holder.empty()) {
+    SDEBUG("revoking %llx from '%s' ('%s' waiting)\n", lid, lock.holder.c_str(), lock.next.c_str());
     
-    handle h(lock.holder);
+    handle h(holder);
     rpcc *cl = h.safebind();
     VERIFY(cl);
 
     int r;
-    rlock_protocol::status rval = cl->call(rlock_protocol::revoke, lid, lock.next, r);
+    rlock_protocol::status rval = cl->call(rlock_protocol::revoke, lid, next, r);
     VERIFY( rval == rlock_protocol::OK );
   }
 
@@ -79,7 +81,7 @@ lock_server_cache::release(lock_protocol::lockid_t lid, std::string id, int &)
   if ( ! lock.is_locked ) return lock_protocol::RPCERR;
   if ( lock.holder != id) return lock_protocol::RPCERR;
 
-  SDEBUG("releasing lock %llu, previously held by client %s\n", lid, id.c_str());
+  SDEBUG("releasing lock %llx, previously held by client %s\n", lid, id.c_str());
 
   lock.is_locked = false;
   lock.holder.clear();

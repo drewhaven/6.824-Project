@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <time.h>
 
-#define EXT_CL_PRINT_DEBUG false
+const bool EXT_CL_PRINT_DEBUG = true;
 
 /* P2P: Changed - never have to flush to server anymore, but now calls push */
 void
@@ -170,14 +170,17 @@ extent_client::flush(extent_protocol::extentid_t eid)
 void
 extent_client::push(lock_protocol::lockid_t lid, std::string client_id)
 {
+  if(EXT_CL_PRINT_DEBUG) printf("pushing %llx to %s\n", lid, client_id.c_str());
+  
+  pthread_mutex_lock(&m);
+  extent_protocol::extentid_t eid = lid; // convert from lid to eid
+  extent &ex = extent_cache[eid];
+  pthread_mutex_unlock(&m);
+  
   handle h(client_id);
   rpcc *client = h.safebind();
-  if( client ) {
-    pthread_mutex_lock(&m);
-    extent_protocol::extentid_t eid = lid; // convert from lid to eid
-    extent &ex = extent_cache[eid];
-    pthread_mutex_unlock(&m);
-    int r;
-    client->call(rlock_protocol::push, lid, eid, ex.buf, ex.attr, r);
-  }
+  VERIFY(client);
+    
+  int r;
+  client->call(rlock_protocol::push, lid, eid, ex.buf, ex.attr, r);
 }

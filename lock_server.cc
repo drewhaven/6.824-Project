@@ -6,10 +6,9 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
-#define PRINT_DEBUG false
+const bool PRINT_DEBUG = false;
 
-lock_server::lock_server():
-  nacquire (0), locks_held(), mutex(PTHREAD_MUTEX_INITIALIZER), cond(PTHREAD_COND_INITIALIZER)
+lock_server::lock_server(): nacquire (0), locks_held()
 {
   pthread_mutex_init(&mutex, NULL);
   pthread_cond_init(&cond, NULL);

@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include "tprintf.h"
 
-#define CLIENT_PRINT_DEBUG false
+const bool CLIENT_PRINT_DEBUG = true;
 
 lock_client_cache::lock_client_cache(std::string xdst, 
 				     class lock_release_user *_lu)
@@ -177,6 +177,7 @@ rlock_protocol::status
 lock_client_cache::push_handler(lock_protocol::lockid_t lid, extent_protocol::extentid_t eid,
 				std::string extent, extent_protocol::attr attr, int &i)
 {
+  if(CLIENT_PRINT_DEBUG) printf("client %s: push lock %llx\n", id.c_str(), lid);
   lu->push_extent(eid, extent, attr);
   return retry_handler(lid, i);
 }

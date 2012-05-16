@@ -29,16 +29,16 @@ lock_client_cache::lock_client_cache(std::string xdst,
 }
 
 lock_protocol::status
-lock_client_cache::acquire(lock_protocol::lockid_t lid)
+lock_client_cache::acquire(const lock_protocol::lockid_t lid)
 {
   int ret = lock_protocol::OK;
   pthread_mutex_lock(&cache_mutex);
-  if(CLIENT_PRINT_DEBUG) printf("client %s: acq lock %d\n", id.c_str(), lid);
+  if(CLIENT_PRINT_DEBUG) printf("client %s: acq lock %llx\n", id.c_str(), lid);
   
 
   if( ! cached_locks.count(lid) ) {
     // initialize lock in table.
-    if(CLIENT_PRINT_DEBUG) printf("client %s: intializing lock %d\n", id.c_str(), lid);
+    if(CLIENT_PRINT_DEBUG) printf("client %s: intializing lock %llx\n", id.c_str(), lid);
     cached_locks[lid].status = NONE;
     cached_locks[lid].revoked = false;
     pthread_cond_init(&cached_locks[lid].lock_cond, NULL);
@@ -46,13 +46,13 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
 
   cache_lockinfo_t &cache = cached_locks[lid];
 
-  if(CLIENT_PRINT_DEBUG) printf("client %s: lock %d cache status %d\n",
+  if(CLIENT_PRINT_DEBUG) printf("client %s: lock %llx cache status %d\n",
 				id.c_str(), lid, cache.status);
   while( true ) {
     if( cache.status == NONE ) {
       cache.status = ACQUIRING;
       pthread_mutex_unlock(&cache_mutex);
-      if(CLIENT_PRINT_DEBUG) printf("client %s: sending acq rpc for lock %d [%d]\n", id.c_str(), lid, cache.status);
+      if(CLIENT_PRINT_DEBUG) printf("client %s: sending acq rpc for lock %llx [%d]\n", id.c_str(), lid, cache.status);
       int r;
       ret = cl->call(lock_protocol::acquire, lid, id, r);
       VERIFY( ret >= 0 );
@@ -61,7 +61,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
       if( ret == lock_protocol::OK ) {
 	cache.status = LOCKED;
 	cache.holder = pthread_self();
-	if(CLIENT_PRINT_DEBUG) printf("client %s: gave out lock %d\n", id.c_str(), lid);
+	if(CLIENT_PRINT_DEBUG) printf("client %s: gave out lock %llx\n", id.c_str(), lid);
 	break;
       }
       else if( ret == lock_protocol::RETRY ){
@@ -79,7 +79,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
     else if( cache.status == FREE ) {
       cache.status = LOCKED;
       cache.holder = pthread_self();
-      if(CLIENT_PRINT_DEBUG) printf("client %s: gave out cached lock %d\n", id.c_str(), lid);
+      if(CLIENT_PRINT_DEBUG) printf("client %s: gave out cached lock %llx\n", id.c_str(), lid);
       break;
     }
     else {
@@ -98,13 +98,13 @@ lock_client_cache::release(lock_protocol::lockid_t lid)
   pthread_mutex_lock(&cache_mutex);
   if( cached_locks.count(lid) ) {
     cache_lockinfo_t &cache = cached_locks[lid];
-    if(CLIENT_PRINT_DEBUG) printf("client %s: release lock %d [%d]\n", id.c_str(), lid, cache.status);
+    if(CLIENT_PRINT_DEBUG) printf("client %s: release lock %llx [%d]\n", id.c_str(), lid, cache.status);
     if( cache.status == LOCKED && cache.holder == pthread_self() ) {
       if( cache.revoked ) {
 	cache.status = RELEASING;
     if (lu) lu->dorelease(lid, cache.next_client);
 	pthread_mutex_unlock(&cache_mutex);
-	if(CLIENT_PRINT_DEBUG) printf("client %s: rpc release lock %d\n", id.c_str(), lid);
+	if(CLIENT_PRINT_DEBUG) printf("client %s: rpc release lock %llx\n", id.c_str(), lid);
 	int r;
 	ret = cl->call(lock_protocol::release, lid, id, r);
 	if( ret != lock_protocol::OK )
@@ -114,7 +114,7 @@ lock_client_cache::release(lock_protocol::lockid_t lid)
 	cache.revoked = false;
       }
       else {
-	if(CLIENT_PRINT_DEBUG) printf("client %s: freeing local lock %d\n", id.c_str(), lid);
+	if(CLIENT_PRINT_DEBUG) printf("client %s: freeing local lock %llx\n", id.c_str(), lid);
 	cache.status = FREE;
       }
       pthread_cond_broadcast(&cache.lock_cond);
@@ -132,13 +132,13 @@ lock_client_cache::revoke_handler(lock_protocol::lockid_t lid, std::string clien
   pthread_mutex_lock(&cache_mutex);
   if( cached_locks.count(lid) ) {
     cache_lockinfo_t &cache = cached_locks[lid];
-    if(CLIENT_PRINT_DEBUG) printf("client %s: revoke lock %d [%d]\n", id.c_str(), lid, cache.status);
+    if(CLIENT_PRINT_DEBUG) printf("client %s: revoke lock %llx [%d]\n", id.c_str(), lid, cache.status);
     if( cache.status == FREE ) {
       cache.status = NONE;
       // please don't break!
       lu->dorelease(lid, client_id);
       pthread_mutex_unlock(&cache_mutex);
-      if(CLIENT_PRINT_DEBUG) printf("client %s: rpc release lock %d\n", id.c_str(), lid);
+      if(CLIENT_PRINT_DEBUG) printf("client %s: rpc release lock %llx\n", id.c_str(), lid);
       int r;
       ret = cl->call(lock_protocol::release, lid, id, r);
       if( ret != lock_protocol::OK )
@@ -161,7 +161,7 @@ lock_client_cache::retry_handler(lock_protocol::lockid_t lid,
 {
   int ret = rlock_protocol::OK;
   pthread_mutex_lock(&cache_mutex);
-  if(CLIENT_PRINT_DEBUG) printf("client %s: retry lock %d\n", id.c_str(), lid);
+  if(CLIENT_PRINT_DEBUG) printf("client %s: retry lock %llx\n", id.c_str(), lid);
   if( cached_locks.count(lid) ) {
     cache_lockinfo_t &cache = cached_locks[lid];
     if( cache.status == ACQUIRING ) {
